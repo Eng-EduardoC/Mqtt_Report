@@ -1,0 +1,7 @@
+1762517024: mosquitto version 2.0.22 starting
+1762517024: Config loaded from /mosquitto/config/mosquitto.conf.
+1762517024: Opening ipv4 listen socket on port 1883.
+1762517024: Opening ipv6 listen socket on port 1883.
+1762517024: mosquitto version 2.0.22 running
+1762517025: New connection from 172.19.0.3:42539 on port 1883.
+1762517025: New client connected from 172.19.0.3:42539 as auto-72B636B1-05DA-5DBD-E88C-1B6B69ED055E (p2, c1, k60, u'Agrodigital').
