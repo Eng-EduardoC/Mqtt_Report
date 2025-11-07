@@ -59,10 +59,11 @@ def enviar_pdf_whatsapp(caminho_pdf, legenda="Relatório MQTT"):
         print("⚠️ Credenciais WhatsApp não configuradas.")
         return
 
-    # 🔧 Token precisa ir como parâmetro na URL (não no corpo)
+    # 🔧 URL corrigida: token via GET + campo 'document'
     url = f"https://api.ultramsg.com/{WHATSAPP_INSTANCE_ID}/messages/document?token={WHATSAPP_TOKEN}"
 
-    files = {"file": open(caminho_pdf, "rb")}
+    # Abre o arquivo PDF
+    files = {"document": open(caminho_pdf, "rb")}
     data = {
         "to": WHATSAPP_TO,
         "filename": os.path.basename(caminho_pdf),
@@ -74,6 +75,7 @@ def enviar_pdf_whatsapp(caminho_pdf, legenda="Relatório MQTT"):
         print("📨 Enviado via WhatsApp:", resp.status_code, resp.text)
     except Exception as e:
         print("❌ Erro ao enviar via WhatsApp:", e)
+
 
 
 # ==================================================
