@@ -105,7 +105,7 @@ def agora_utc_iso():
 
 def agora_legivel():
     """Retorna data e hora em formato legível para nomes de arquivos."""
-    return datetime.now().strftime("%d/%m/%Y - %H")
+    return datetime.now().strftime("%d-%m-%Y_%H")
 
 
 def normalizar_topico(topico: str) -> str:
