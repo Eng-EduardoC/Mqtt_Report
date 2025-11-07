@@ -15,6 +15,9 @@ import requests
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
+import threading
+
+from flask import Flask, request
 
 
 # ============================================================
@@ -399,6 +402,65 @@ if MQTT_USER and MQTT_PASS:
 
 
 # ============================================================
+#  🔄 BOT WHATSAPP INTEGRADO (RECEBE COMANDO E ENVIA MQTT)
+# ============================================================
+
+# Criar app Flask
+app = Flask(__name__)
+
+@app.route("/webhook", methods=["POST"])
+def receber_whatsapp():
+    """Recebe mensagens do WhatsApp via UltraMsg Webhook"""
+    data = request.json or {}
+    print("📩 Webhook WhatsApp recebido:", data)
+
+    msg = data.get("data", {}).get("body", "").strip().lower()
+    chat_id = data.get("data", {}).get("chatId")
+
+    # Verifica o conteúdo da mensagem
+    if "iniciar leitura" in msg:
+        resposta = (
+            "✅ O sistema de termometria iniciou a leitura.\n"
+            "⏳ Aguarde aproximadamente *10 minutos*.\n"
+            "📄 O relatório será enviado automaticamente."
+        )
+
+        # Envia resposta no WhatsApp
+        enviar_pdf_whatsapp_mensagem(chat_id, resposta)
+
+        # Publica no MQTT
+        topico_comando = "silos/fazenda_jk/comando"
+        client.publish(topico_comando, "iniciar_leitura")
+        print(f"🚀 Publicado comando MQTT em {topico_comando}")
+
+    else:
+        resposta = (
+            "🤖 Comando não reconhecido.\n"
+            "Envie *Iniciar Leitura* para começar o processo de termometria."
+        )
+        enviar_pdf_whatsapp_mensagem(chat_id, resposta)
+
+    return {"status": "ok"}
+
+
+# Função auxiliar para enviar mensagens simples (texto)
+def enviar_pdf_whatsapp_mensagem(numero_destino, texto):
+    """Envia mensagem simples de texto via UltraMsg"""
+    url = f"https://api.ultramsg.com/{WHATSAPP_INSTANCE_ID}/messages/chat"
+    data = {
+        "token": WHATSAPP_TOKEN,
+        "to": numero_destino,
+        "body": texto,
+    }
+    try:
+        resp = requests.post(url, data=data, timeout=30)
+        print("📨 Mensagem enviada:", resp.status_code, resp.text)
+    except Exception as e:
+        print("❌ Erro ao enviar mensagem:", e)
+
+
+
+# ============================================================
 # 9. Ponto de entrada
 # ============================================================
 
@@ -406,8 +468,14 @@ def main():
     print(f"🔗 Conectando ao broker {MQTT_HOST}:{MQTT_PORT} ...")
     client.connect(MQTT_HOST, MQTT_PORT, 60)
 
+    # Inicia o monitor de relatórios
     stop_event = threading.Event()
-    threading.Thread(target=monitorar_agrupamento, args=(stop_event,), daemon=True).start()
+    t = threading.Thread(target=monitorar_agrupamento, args=(stop_event,), daemon=True)
+    t.start()
+
+    # Inicia o servidor Flask (Webhook)
+    flask_thread = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=5000), daemon=True)
+    flask_thread.start()
 
     try:
         client.loop_forever()
