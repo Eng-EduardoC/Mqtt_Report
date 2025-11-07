@@ -55,15 +55,15 @@ def gerar_pdf(payload, caminho_pdf):
 
 
 def enviar_pdf_whatsapp(caminho_pdf, legenda="Relatório MQTT"):
-    """Envia o PDF gerado via API UltraMsg"""
     if not (WHATSAPP_INSTANCE_ID and WHATSAPP_TOKEN and WHATSAPP_TO):
         print("⚠️ Credenciais WhatsApp não configuradas.")
         return
 
-    url = f"https://api.ultramsg.com/{WHATSAPP_INSTANCE_ID}/messages/document"
+    # 🔧 Token precisa ir como parâmetro na URL (não no corpo)
+    url = f"https://api.ultramsg.com/{WHATSAPP_INSTANCE_ID}/messages/document?token={WHATSAPP_TOKEN}"
+
     files = {"file": open(caminho_pdf, "rb")}
     data = {
-        "token": WHATSAPP_TOKEN,
         "to": WHATSAPP_TO,
         "filename": os.path.basename(caminho_pdf),
         "caption": legenda,
