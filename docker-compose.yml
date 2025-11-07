@@ -16,6 +16,8 @@ services:
     build: ./app
     container_name: mqtt-report-app
     restart: unless-stopped
+    ports:
+      - "5000:5000"
     depends_on:
       - mqtt-broker
     command: >
