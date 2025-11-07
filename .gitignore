@@ -1,0 +1,20 @@
+# ===== IGNORAR ARQUIVOS TEMPORÁRIOS =====
+*.log
+*.db
+*.pid
+*.sock
+
+# ===== MOSQUITTO =====
+mosquitto/data/
+mosquitto/log/
+
+# ===== PYTHON =====
+__pycache__/
+*.pyc
+
+# ===== DOCKER VOLUMES / RELATORIOS =====
+data/
+relatorios/
+
+# ===== OUTROS =====
+.env
