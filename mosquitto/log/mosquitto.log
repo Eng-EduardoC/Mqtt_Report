@@ -8,3 +8,48 @@
 1762517163: Client auto-72B636B1-05DA-5DBD-E88C-1B6B69ED055E closed its connection.
 1762517163: mosquitto version 2.0.22 terminating
 1762517163: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1762520112: mosquitto version 2.0.22 starting
+1762520112: Config loaded from /mosquitto/config/mosquitto.conf.
+1762520112: Opening ipv4 listen socket on port 1883.
+1762520112: Opening ipv6 listen socket on port 1883.
+1762520112: mosquitto version 2.0.22 running
+1762520113: New connection from 172.19.0.3:50275 on port 1883.
+1762520113: New client connected from 172.19.0.3:50275 as auto-011352F5-541E-AD83-8BCB-005D46BC54F3 (p2, c1, k60, u'Agrodigital').
+1762520407: Client auto-011352F5-541E-AD83-8BCB-005D46BC54F3 closed its connection.
+1762520408: mosquitto version 2.0.22 terminating
+1762520408: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1762520460: mosquitto version 2.0.22 starting
+1762520460: Config loaded from /mosquitto/config/mosquitto.conf.
+1762520460: Opening ipv4 listen socket on port 1883.
+1762520460: Opening ipv6 listen socket on port 1883.
+1762520460: mosquitto version 2.0.22 running
+1762520470: New connection from 172.19.0.3:58109 on port 1883.
+1762520470: New client connected from 172.19.0.3:58109 as auto-26ECB2AD-D1FE-7224-3B87-E59AAF4BC014 (p2, c1, k60, u'Agrodigital').
+1762520488: New connection from 172.19.0.1:45744 on port 1883.
+1762520488: New client connected from 172.19.0.1:45744 as mqttx_2992f1f0 (p5, c1, k60, u'Agrodigital').
+1762520497: Client mqttx_2992f1f0 disconnected.
+1762521065: Client auto-26ECB2AD-D1FE-7224-3B87-E59AAF4BC014 closed its connection.
+1762521066: mosquitto version 2.0.22 terminating
+1762521066: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1762521076: mosquitto version 2.0.22 starting
+1762521076: Config loaded from /mosquitto/config/mosquitto.conf.
+1762521076: Opening ipv4 listen socket on port 1883.
+1762521076: Opening ipv6 listen socket on port 1883.
+1762521076: mosquitto version 2.0.22 running
+1762521088: New connection from 172.19.0.3:57717 on port 1883.
+1762521088: New client connected from 172.19.0.3:57717 as auto-011A7AB6-5F28-4B29-4235-57232BA6A59A (p2, c1, k60, u'Agrodigital').
+1762521145: New connection from 172.19.0.1:43956 on port 1883.
+1762521145: New client connected from 172.19.0.1:43956 as mqttx_2992f1f0 (p5, c1, k60, u'Agrodigital').
+1762521425: Client auto-011A7AB6-5F28-4B29-4235-57232BA6A59A closed its connection.
+1762521425: mosquitto version 2.0.22 terminating
+1762521425: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1762521432: mosquitto version 2.0.22 starting
+1762521432: Config loaded from /mosquitto/config/mosquitto.conf.
+1762521432: Opening ipv4 listen socket on port 1883.
+1762521432: Opening ipv6 listen socket on port 1883.
+1762521432: mosquitto version 2.0.22 running
+1762521443: New connection from 172.19.0.3:59047 on port 1883.
+1762521443: New client connected from 172.19.0.3:59047 as auto-A3F41A96-8F91-6501-C06C-796BD3190930 (p2, c1, k60, u'Agrodigital').
+1762521446: New connection from 172.19.0.1:42644 on port 1883.
+1762521446: New client connected from 172.19.0.1:42644 as mqttx_2992f1f0 (p5, c1, k60, u'Agrodigital').
+1762521456: Client mqttx_2992f1f0 disconnected.

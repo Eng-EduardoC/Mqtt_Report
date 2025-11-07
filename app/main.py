@@ -55,23 +55,28 @@ def gerar_pdf(payload, caminho_pdf):
 
 
 def enviar_pdf_whatsapp(caminho_pdf, legenda="Relatório MQTT"):
+    import requests, os, base64
+
     if not (WHATSAPP_INSTANCE_ID and WHATSAPP_TOKEN and WHATSAPP_TO):
         print("⚠️ Credenciais WhatsApp não configuradas.")
         return
 
-    # 🔧 URL corrigida: token via GET + campo 'document'
-    url = f"https://api.ultramsg.com/{WHATSAPP_INSTANCE_ID}/messages/document?token={WHATSAPP_TOKEN}"
+    url = f"https://api.ultramsg.com/{WHATSAPP_INSTANCE_ID}/messages/document"
 
-    # Abre o arquivo PDF
-    files = {"document": open(caminho_pdf, "rb")}
+    # 🔹 Ler e converter PDF em base64
+    with open(caminho_pdf, "rb") as f:
+        pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+
     data = {
+        "token": WHATSAPP_TOKEN,
         "to": WHATSAPP_TO,
         "filename": os.path.basename(caminho_pdf),
+        "document": pdf_b64,
         "caption": legenda,
     }
 
     try:
-        resp = requests.post(url, data=data, files=files, timeout=30)
+        resp = requests.post(url, data=data, timeout=60)
         print("📨 Enviado via WhatsApp:", resp.status_code, resp.text)
     except Exception as e:
         print("❌ Erro ao enviar via WhatsApp:", e)
