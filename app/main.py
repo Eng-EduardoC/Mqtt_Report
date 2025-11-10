@@ -323,11 +323,11 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
                     y_arco = y_base + max_sensores * tam + (tam * 1.3)
                     c.drawCentredString(x_centro, y_arco, f"A{num_arco:02}")
 
-        # Linha divisória se houver duas fileiras
-        if num_linhas == 2:
-            y_meio = inicio_y_global + max_sensores * tam + GAP_ENTRE_LINHAS / 2
-            c.setStrokeColor(colors.lightgrey)
-            c.line(MARGEM_X / 2, y_meio, largura - MARGEM_X / 2, y_meio)
+        # # Linha divisória se houver duas fileiras
+        # if num_linhas == 2:
+        #     y_meio = inicio_y_global + max_sensores * tam + GAP_ENTRE_LINHAS / 2
+        #     c.setStrokeColor(colors.lightgrey)
+        #     c.line(MARGEM_X / 2, y_meio, largura - MARGEM_X / 2, y_meio)
 
         # === Legenda de gradiente ===
         c.setFont("Helvetica-Bold", 9)
@@ -444,19 +444,27 @@ def enviar_pdf_whatsapp_memoria(buffer_pdf: io.BytesIO, nome_arquivo: str, legen
         "caption": legenda,
     }
 
-    try:
-        resp = requests.post(url, data=data, timeout=(10, 180))
-        print("📨 Enviado via WhatsApp:", resp.status_code, resp.text)
-    except requests.exceptions.ReadTimeout:
-        print("⚠️ Timeout no envio. Tentando novamente em 10 s...")
-        time.sleep(10)
+    tentativas = 3
+    for tentativa in range(1, tentativas + 1):
         try:
-            resp = requests.post(url, data=data, timeout=(10, 180))
-            print("📨 Reenvio concluído:", resp.status_code, resp.text)
-        except Exception as e2:
-            print("❌ Falha também na segunda tentativa:", e2)
-    except Exception as e:
-        print("❌ Erro ao enviar via WhatsApp:", e)
+            resp = requests.post(url, data=data, timeout=(8, 25))
+            print(f"📨 Tentativa {tentativa}: {resp.status_code}")
+            if resp.status_code == 200:
+                print("✅ Enviado com sucesso via WhatsApp!")
+                break
+            elif resp.status_code >= 500:
+                print(f"⚠️ Erro servidor ({resp.status_code}), aguardando 10 s...")
+                time.sleep(10)
+            else:
+                print("❌ Falha não recuperável:", resp.text)
+                break
+        except requests.exceptions.ReadTimeout:
+            print(f"⚠️ Timeout na tentativa {tentativa}, aguardando 10 s...")
+            time.sleep(10)
+        except Exception as e:
+            print(f"❌ Erro ao enviar na tentativa {tentativa}:", e)
+            time.sleep(10)
+
 
 
 
