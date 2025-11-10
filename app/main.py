@@ -9,6 +9,7 @@ import base64
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+import io
 
 import paho.mqtt.client as mqtt
 import requests
@@ -40,7 +41,7 @@ def carregar_config():
         {
           "obra": "fazenda_jk",
           "numero": "+5584999999999",
-          "silos": [
+          "unidades": [
             { "nome": "silo_01", "descricao": "Silo 01 - Fazenda JK", "config": [9,9,9,9,9,10] },
             { "nome": "silo_02", "descricao": "Silo 02 - Fazenda JK", "config": [6,6,6,6,6] }
           ]
@@ -76,17 +77,6 @@ RELATORIO_TIMEOUT = int(rel_cfg.get("timeout_segundos", 180))
 # ----- Clientes / Obras -----
 CLIENTES = CONFIG.get("clientes", [])
 OBRA_CONFIG = {c["obra"]: c for c in CLIENTES}
-
-
-# ============================================================
-# 2. Diretórios de saída
-# ============================================================
-
-DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
-RELATORIOS_DIR = DATA_DIR / "relatorios"
-RELATORIOS_DIR.mkdir(parents=True, exist_ok=True)
-
-print(f"📂 Diretório de relatórios: {RELATORIOS_DIR}")
 
 
 # ============================================================
@@ -269,7 +259,7 @@ def enviar_pdf_whatsapp(caminho_pdf: Path, legenda: str, numero_destino: str):
 
 
 def gerar_e_enviar_relatorio_obra(obra: str):
-    """Gera PDF com 1 página por silo e envia via WhatsApp."""
+    """Gera PDF em memória e envia via WhatsApp (sem salvar em disco)."""
     cliente = OBRA_CONFIG.get(obra)
     if not cliente:
         print(f"⚠️ Obra {obra} não encontrada em CONFIG.")
@@ -281,15 +271,14 @@ def gerar_e_enviar_relatorio_obra(obra: str):
         return
 
     nome_arquivo = f"Relatorio_{obra.replace(' ', '_').title()}_{agora_legivel()}.pdf"
-    caminho_pdf = RELATORIOS_DIR / nome_arquivo
+    legenda = f"📊 Relatório de Temperatura - {obra.replace('_', ' ').title()}"
+    numero = cliente.get("numero")
 
-    c = canvas.Canvas(str(caminho_pdf), pagesize=A4)
+    buffer_pdf = io.BytesIO()
+    c = canvas.Canvas(buffer_pdf, pagesize=A4)
     c.setTitle(f"Relatório Térmico - {obra.replace('_', ' ').title()}")
-    c.setAuthor("AgroDigital Engenharia")
-    c.setSubject(f"Monitoramento térmico consolidado - {obra.replace('_', ' ').title()}")
-    c.setKeywords("Relatório térmico, termometria, silos, AgroDigital")
 
-    for silo in cliente["silos"]:
+    for silo in cliente["unidades"]:
         nome = silo["nome"]
         descricao = silo.get("descricao", nome)
         config = silo.get("config", [])
@@ -301,16 +290,39 @@ def gerar_e_enviar_relatorio_obra(obra: str):
         gerar_relatorio_silo(c, descricao, config, temperaturas)
 
     c.save()
-    print(f"📄 PDF consolidado da obra {obra} gerado: {caminho_pdf}")
+    buffer_pdf.seek(0)
 
-    numero = cliente.get("numero")
-    legenda = f"📊 Relatório de Temperatura - {obra.replace('_', ' ').title()}"
-    enviar_pdf_whatsapp(caminho_pdf, legenda, numero)
+    print(f"📄 PDF da obra {obra} gerado em memória (não salvo em disco).")
+    enviar_pdf_whatsapp_memoria(buffer_pdf, nome_arquivo, legenda, numero)
 
-    # Limpa dados após envio
     with leituras_lock:
         leituras_obra.pop(obra, None)
         ultima_leitura.pop(obra, None)
+
+
+def enviar_pdf_whatsapp_memoria(buffer_pdf: io.BytesIO, nome_arquivo: str, legenda: str, numero_destino: str):
+    """Envia PDF diretamente da memória via API UltraMsg."""
+    if not (WHATSAPP_INSTANCE_ID and WHATSAPP_TOKEN and numero_destino):
+        print("⚠️ Credenciais WhatsApp ou número não configurados.")
+        return
+
+    url = f"https://api.ultramsg.com/{WHATSAPP_INSTANCE_ID}/messages/document"
+    pdf_b64 = base64.b64encode(buffer_pdf.getvalue()).decode("utf-8")
+
+    data = {
+        "token": WHATSAPP_TOKEN,
+        "to": numero_destino,
+        "filename": nome_arquivo,
+        "document": pdf_b64,
+        "caption": legenda,
+    }
+
+    try:
+        resp = requests.post(url, data=data, timeout=60)
+        print("📨 Enviado via WhatsApp:", resp.status_code, resp.text)
+    except Exception as e:
+        print("❌ Erro ao enviar via WhatsApp:", e)
+
 
 
 # ============================================================
@@ -342,7 +354,7 @@ def monitorar_agrupamento(stop_event: threading.Event):
 TOPICOS_PERMITIDOS = set()
 for cliente in CLIENTES:
     obra = cliente["obra"]
-    for silo in cliente.get("silos", []):
+    for silo in cliente.get("unidades", []):
         nome_silo = silo["nome"]
         TOPICOS_PERMITIDOS.add(f"temperaturas/{obra}/{nome_silo}")
 

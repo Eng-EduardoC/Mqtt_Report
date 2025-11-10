@@ -1,14 +1,4 @@
 {
-  "mqtt": {
-    "host": "mqtt-broker",
-    "port": 1883,
-    "user": "Agrodigital",
-    "pass": "Eng2025@"
-  },
-  "whatsapp": {
-    "instance_id": "instance148636",
-    "token": "01vo85agef4imw7a"
-  },
   "relatorio": {
     "timeout_segundos": 5
   },
@@ -16,7 +6,7 @@
     {
       "obra": "fazenda_jk_testes",
       "numero": "120363421947965633@g.us",
-       "silos": [
+       "unidades": [
         {
             "nome": "silo_01",
             "descricao": "Silo 01 - Fazenda JK",
@@ -32,7 +22,37 @@
             "descricao": "Silo Pulmão - JK",
             "config": [6, 6, 6]
         }
-        ]
+        ],
+      "obra": "cotripal",
+      "numero": "120363421947965633@g.us",
+       "silos": [
+        {
+            "nome": "armazem_01",
+            "descricao": "Armazém 01 - Cotripal",
+            "config": [
+              3,5,6,5,3,3,6,9,6,3,3,6,10,6,3,3,6,10,6,3,3,6,10,6,
+              3,3,6,10,6,3,3,6,10,6,3,3,6,10,6,3,3,6,10,6,3,3,6,10,
+              6,3,3,6,10,6,3,3,6,10,6,3,3,6,10,6,3,3,6,10,6,3,3,6,
+              10,6,3,3,6,9,6,3,3,5,6,5,3
+            ]
+        },
+        {
+            "nome": "armazem_02",
+            "descricao": "Armazém 02 - Cotripal",
+            "config": [
+              3,6,9,9,6,3,3,7,11,11,7,3,3,7,11,11,7,3,3,7,11,11,7,3,
+              3,7,11,11,7,3,3,6,9,9,6,3,3,6,9,9,6,3,3,7,11,11,7,3,
+              3,7,11,11,7,3,3,7,11,11,7,3,3,7,11,11,7,3,3,6,9,9,6,3,
+              3,6,9,9,6,3,3,7,11,11,7,3,3,7,11,11,7,3,
+              3,7,11,11,7,3,3,7,11,11,7,3,3,6,9,9,6,3
+            ]
+        },
+        {
+            "nome": "silo_01",
+            "descricao": "Silo 01 - Cotripal",
+            "config": [7,7,7,7,8]
+        }
+       ]
     }
   ]
 }
