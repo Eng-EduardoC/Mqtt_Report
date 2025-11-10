@@ -178,9 +178,10 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
     """
     Gera o relatório térmico de um silo, em modo paisagem,
     com até 2 linhas de cabos por página, e célula dimensionada de forma dinâmica.
-    Agora com lógica para não quebrar arcos entre páginas.
+    - Não quebra arco entre páginas
+    - Não quebra arco entre linha 1 e linha 2
     """
-    # === Construção da matriz de colunas ===
+    # === Construção da matriz de colunas (cabos) ===
     colunas = []
     idx = 0
     for nsens in config:
@@ -195,7 +196,7 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
     total_cabos = len(colunas)
     if total_cabos == 0:
         return
-    max_sensores = max((len(c) for c in colunas), default=0)
+    max_sensores = max((len(cabo) for cabo in colunas), default=0)
     if max_sensores == 0:
         return
 
@@ -205,35 +206,84 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
     MAX_CABOS_POR_LINHA = 36
     MAX_LINHAS_POR_PAGINA = 2
     CABOS_POR_PAGINA = MAX_CABOS_POR_LINHA * MAX_LINHAS_POR_PAGINA
-    MARGEM_X, MARGEM_TOPO, MARGEM_RODAPE = 80, 110, 70
+
+    MARGEM_X = 80
+    MARGEM_TOPO = 110
+    MARGEM_RODAPE = 70
     GAP_ENTRE_LINHAS = 40
 
-    # === NOVA LÓGICA: paginar sem quebrar arcos ===
-    paginas_indices = []
+    # -------------------------------------------------
+    # 1) Monta grupos de cabos por arco (índices globais)
+    # -------------------------------------------------
+    cabos_por_arco = []
     if arcos:
         inicio = 0
-        cabos_restantes_pagina = CABOS_POR_PAGINA
-        pagina_atual = []
         for qtd in arcos:
-            if qtd > cabos_restantes_pagina:
-                # Fecha a página atual e inicia nova
-                paginas_indices.append(pagina_atual)
-                pagina_atual = []
-                cabos_restantes_pagina = CABOS_POR_PAGINA
-            # Adiciona arco inteiro
-            pagina_atual.extend(range(inicio, inicio + qtd))
-            inicio += qtd
-            cabos_restantes_pagina -= qtd
-        if pagina_atual:
-            paginas_indices.append(pagina_atual)
+            fim = min(inicio + qtd, total_cabos)
+            if inicio >= fim:
+                break
+            cabos_por_arco.append(list(range(inicio, fim)))
+            inicio = fim
+        # Se sobraram cabos além dos arcos declarados, coloca tudo em um arco extra
+        if inicio < total_cabos:
+            cabos_por_arco.append(list(range(inicio, total_cabos)))
     else:
-        # Sem arcos → paginar normalmente
-        paginas_indices = [list(range(i, min(i + CABOS_POR_PAGINA, total_cabos)))
-                           for i in range(0, total_cabos, CABOS_POR_PAGINA)]
+        # Sem arcos → cada cabo é tratado como um "arco" de 1
+        cabos_por_arco = [ [i] for i in range(total_cabos) ]
 
-    # === Desenho de cada página ===
+    # -------------------------------------------------
+    # 2) Paginação: distribui arcos entre páginas
+    #    (não quebra arco entre páginas)
+    # -------------------------------------------------
+    paginas_indices = []   # lista de listas de cabos por página
+    paginas_arcos = []     # lista de listas de "arcos" (cada arco é uma lista de cabos)
+
+    cabos_restantes_pagina = CABOS_POR_PAGINA
+    pagina_cabos = []
+    pagina_arcos = []
+
+    for arco_indices in cabos_por_arco:
+        qtd = len(arco_indices)
+
+        # Se o arco sozinho é maior que a página, aí não tem jeito, terá de ser quebrado.
+        if qtd > CABOS_POR_PAGINA:
+            # primeiro, fecha página atual se tiver algo
+            if pagina_cabos:
+                paginas_indices.append(pagina_cabos)
+                paginas_arcos.append(pagina_arcos)
+                pagina_cabos = []
+                pagina_arcos = []
+                cabos_restantes_pagina = CABOS_POR_PAGINA
+
+            # quebra o arco gigante em pedaços do tamanho da página
+            for i in range(0, qtd, CABOS_POR_PAGINA):
+                chunk = arco_indices[i:i + CABOS_POR_PAGINA]
+                paginas_indices.append(chunk)
+                paginas_arcos.append([chunk])
+            cabos_restantes_pagina = CABOS_POR_PAGINA
+            continue
+
+        # Se não cabe na página atual, pula para a próxima
+        if qtd > cabos_restantes_pagina and pagina_cabos:
+            paginas_indices.append(pagina_cabos)
+            paginas_arcos.append(pagina_arcos)
+            pagina_cabos = []
+            pagina_arcos = []
+            cabos_restantes_pagina = CABOS_POR_PAGINA
+
+        pagina_cabos.extend(arco_indices)
+        pagina_arcos.append(arco_indices)
+        cabos_restantes_pagina -= qtd
+
+    if pagina_cabos:
+        paginas_indices.append(pagina_cabos)
+        paginas_arcos.append(pagina_arcos)
+
+    # -------------------------------------------------
+    # 3) Desenho de cada página
+    # -------------------------------------------------
     primeira = True
-    for indices_pag in paginas_indices:
+    for indices_pag, arcos_da_pagina in zip(paginas_indices, paginas_arcos):
         if not primeira:
             c.showPage()
         primeira = False
@@ -249,7 +299,7 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         c.setFillColor(cor_fundo_cab)
         c.rect(0, altura - CABECALHO_ALTURA, largura, CABECALHO_ALTURA, fill=1, stroke=0)
 
-        # Logo alinhada à esquerda, centrada verticalmente no cabeçalho
+        # Logo
         logo_path = os.path.join(BASE_DIR, "assets", "logo eletromaass.png")
         if os.path.exists(logo_path):
             logo_alt, logo_larg = 40, 80
@@ -260,7 +310,7 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
                 preserveAspectRatio=True, mask='auto'
             )
 
-        # Texto centralizado (título e data)
+        # Texto central
         centro_x = largura / 2
         centro_y_cab = altura - (CABECALHO_ALTURA / 2)
         c.setFillColor(colors.black)
@@ -269,15 +319,60 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         c.setFont("Helvetica", 11)
         c.drawCentredString(centro_x, centro_y_cab - 12, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-        # === Cabos da página ===
-        indices_linha1 = indices_pag[:MAX_CABOS_POR_LINHA]
-        indices_linha2 = indices_pag[MAX_CABOS_POR_LINHA:]
-        linhas_indices = [indices_linha1] + ([indices_linha2] if indices_linha2 else [])
+        # -------------------------------------------------
+        # 3.1) Quebra em linha 1 e linha 2 SEM quebrar arco
+        # -------------------------------------------------
+        indices_linha1: list[int] = []
+        indices_linha2: list[int] = []
+        cabos_restantes_linha1 = MAX_CABOS_POR_LINHA
+
+        for arco_indices in arcos_da_pagina:
+            # Interseção arco x página (normalmente já é igual, mas por segurança)
+            grupo = [idx for idx in arco_indices if idx in indices_pag]
+            if not grupo:
+                continue
+
+            qtd = len(grupo)
+
+            # caso extremo: arco maior que a linha → divide (não tem jeito)
+            if qtd > MAX_CABOS_POR_LINHA:
+                # completa linha 1
+                falta_l1 = MAX_CABOS_POR_LINHA - len(indices_linha1)
+                indices_linha1.extend(grupo[:falta_l1])
+                indices_linha2.extend(grupo[falta_l1:])
+                cabos_restantes_linha1 = 0
+                continue
+
+            # Se ainda cabe inteiro na linha 1, coloca lá
+            if qtd <= cabos_restantes_linha1:
+                indices_linha1.extend(grupo)
+                cabos_restantes_linha1 -= qtd
+            else:
+                # Senão, vai inteiro pra linha 2
+                indices_linha2.extend(grupo)
+
+        # Garante que a ordem dos cabos nas linhas siga a ordem da página
+        indices_linha1 = [idx for idx in indices_pag if idx in indices_linha1]
+        indices_linha2 = [idx for idx in indices_pag if idx in indices_linha2]
+
+        linhas_indices = []
+        if indices_linha1:
+            linhas_indices.append(indices_linha1)
+        if indices_linha2:
+            linhas_indices.append(indices_linha2)
+
         num_linhas = len(linhas_indices)
+        if num_linhas == 0:
+            continue
+
         max_cabos_linha = max(len(l) for l in linhas_indices)
 
+        # -------------------------------------------------
+        # 3.2) Cálculo de tamanho das células
+        # -------------------------------------------------
         altura_disp = altura - MARGEM_TOPO - MARGEM_RODAPE
         largura_disp = largura - 2 * MARGEM_X
+
         tam_h = (altura_disp - (num_linhas - 1) * GAP_ENTRE_LINHAS) / (max_sensores * num_linhas)
         tam_w = largura_disp / max_cabos_linha
         tam = min(tam_h, tam_w, 25)
@@ -286,23 +381,17 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         altura_total = max_sensores * tam * num_linhas + (num_linhas - 1) * GAP_ENTRE_LINHAS
         inicio_y_global = ((altura - altura_total) / 2) - MARGEM_INFERIOR_CABECALHO
 
-        # --- Divisão por arcos (calculada 1x por página) ---
-        arcos_indices = []
-        if arcos:
-            inicio_arco = 0
-            for qtd in arcos:
-                fim_arco = inicio_arco + qtd
-                arcos_indices.append(list(range(inicio_arco, fim_arco)))
-                inicio_arco = fim_arco
-
-        # === Desenho ===
+        # -------------------------------------------------
+        # 3.3) Desenho das linhas (matriz térmica)
+        # -------------------------------------------------
         c.setLineWidth(0.5)
         for idx_linha, indices_cabos in enumerate(reversed(linhas_indices)):
             y_base = inicio_y_global + idx_linha * (max_sensores * tam + GAP_ENTRE_LINHAS)
-            num_cabos = len(indices_cabos)
-            largura_mat = num_cabos * tam
+            num_cabos_linha = len(indices_cabos)
+            largura_mat = num_cabos_linha * tam
             x_inicio = (largura - largura_mat) / 2
 
+            # Células
             c.setFont("Helvetica-Bold", 6)
             for pos_cabo, idx_cabo in enumerate(indices_cabos):
                 col = colunas[idx_cabo]
@@ -318,6 +407,7 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
 
             # Sensores à esquerda
             c.setFont("Helvetica-Bold", 7)
+            c.setFillColor(colors.black)
             for i in range(max_sensores):
                 y_label = y_base + i * tam + tam / 2 - 3
                 c.drawRightString(x_inicio - 8, y_label, f"S{i+1:02}")
@@ -329,11 +419,12 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
                 y_label = y_base + max_sensores * tam + (tam * 0.3)
                 c.drawCentredString(x_label, y_label, f"C{idx_cabo + 1:02}")
 
-            # Etiquetas de arcos nesta linha
-            if arcos_indices:
+            # Etiquetas de arcos
+            if arcos and arcos_da_pagina:
                 c.setFont("Helvetica-Bold", 8)
-                for num_arco, grupo in enumerate(arcos_indices, start=1):
-                    cabos_linha = [idx for idx in indices_cabos if idx in grupo]
+                c.setFillColor(colors.black)
+                for num_arco, arco_indices in enumerate(arcos_da_pagina, start=1):
+                    cabos_linha = [idx for idx in indices_cabos if idx in arco_indices]
                     if not cabos_linha:
                         continue
                     primeiro_idx = cabos_linha[0]
@@ -356,17 +447,18 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(colors.black)
         c.drawCentredString(largura / 2, 50, "Escala de Temperatura")
+
         barra_larg, barra_alt = 400, 14
         x_ini_barra = (largura - barra_larg) / 2
         y_barra = 30
         num_passos = 100
         for i in range(num_passos):
             frac = i / (num_passos - 1)
-            v = -5 + frac * 65
+            v = -5 + frac * 65  # -5 a 60
             cor = cor_por_valor(v)
-            x = x_ini_barra + i * (barra_larg / num_passos)
+            x_bar = x_ini_barra + i * (barra_larg / num_passos)
             c.setFillColor(cor)
-            c.rect(x, y_barra, barra_larg / num_passos, barra_alt, fill=1, stroke=0)
+            c.rect(x_bar, y_barra, barra_larg / num_passos, barra_alt, fill=1, stroke=0)
 
         c.setFillColor(colors.black)
         c.setFont("Helvetica", 7)
@@ -374,6 +466,7 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         c.drawCentredString(largura / 2, y_barra + 3, "Normal")
         c.drawRightString(x_ini_barra + barra_larg + 25, y_barra + 3, "Crítico")
 
+    # Ao final deste silo, mantém o comportamento antigo:
     c.showPage()
 
 
