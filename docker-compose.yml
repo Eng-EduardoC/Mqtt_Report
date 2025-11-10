@@ -26,8 +26,8 @@ services:
       MQTT_PORT: "1883"
       MQTT_USER: "Agrodigital"
       MQTT_PASS: "Eng2025@"
-      WHATSAPP_INSTANCE_ID: "instance148636"
-      WHATSAPP_TOKEN: "01vo85agef4imw7a"
-      WHATSAPP_TO: "+555591656011"      # número destino
+      WASENDER_API_KEY: "40561669109635220589a9d30b2e95dd382955f74fc7cdb0067de20ee0406e22"
+      #WHATSAPP_INSTANCE_ID: "instance148636"
+      #WHATSAPP_TOKEN: "01vo85agef4imw7a"
     volumes:
       - ./app/config.json:/app/config.json:ro
