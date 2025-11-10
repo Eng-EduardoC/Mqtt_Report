@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   mqtt-broker:
     image: eclipse-mosquitto:2
@@ -28,9 +26,8 @@ services:
       MQTT_PORT: "1883"
       MQTT_USER: "Agrodigital"
       MQTT_PASS: "Eng2025@"
-      MQTT_TOPICS: "silos/#"
       WHATSAPP_INSTANCE_ID: "instance148636"
       WHATSAPP_TOKEN: "01vo85agef4imw7a"
       WHATSAPP_TO: "+555591656011"      # número destino
     volumes:
-      - ./data:/data
+      - ./app/config.json:/app/config.json:ro
