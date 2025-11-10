@@ -178,6 +178,7 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
     """
     Gera o relatório térmico de um silo, em modo paisagem,
     com até 2 linhas de cabos por página, e célula dimensionada de forma dinâmica.
+    Agora com lógica para não quebrar arcos entre páginas.
     """
     # === Construção da matriz de colunas ===
     colunas = []
@@ -207,8 +208,32 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
     MARGEM_X, MARGEM_TOPO, MARGEM_RODAPE = 80, 110, 70
     GAP_ENTRE_LINHAS = 40
 
+    # === NOVA LÓGICA: paginar sem quebrar arcos ===
+    paginas_indices = []
+    if arcos:
+        inicio = 0
+        cabos_restantes_pagina = CABOS_POR_PAGINA
+        pagina_atual = []
+        for qtd in arcos:
+            if qtd > cabos_restantes_pagina:
+                # Fecha a página atual e inicia nova
+                paginas_indices.append(pagina_atual)
+                pagina_atual = []
+                cabos_restantes_pagina = CABOS_POR_PAGINA
+            # Adiciona arco inteiro
+            pagina_atual.extend(range(inicio, inicio + qtd))
+            inicio += qtd
+            cabos_restantes_pagina -= qtd
+        if pagina_atual:
+            paginas_indices.append(pagina_atual)
+    else:
+        # Sem arcos → paginar normalmente
+        paginas_indices = [list(range(i, min(i + CABOS_POR_PAGINA, total_cabos)))
+                           for i in range(0, total_cabos, CABOS_POR_PAGINA)]
+
+    # === Desenho de cada página ===
     primeira = True
-    for inicio_pag in range(0, total_cabos, CABOS_POR_PAGINA):
+    for indices_pag in paginas_indices:
         if not primeira:
             c.showPage()
         primeira = False
@@ -245,8 +270,6 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         c.drawCentredString(centro_x, centro_y_cab - 12, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
         # === Cabos da página ===
-        fim_pag = min(inicio_pag + CABOS_POR_PAGINA, total_cabos)
-        indices_pag = list(range(inicio_pag, fim_pag))
         indices_linha1 = indices_pag[:MAX_CABOS_POR_LINHA]
         indices_linha2 = indices_pag[MAX_CABOS_POR_LINHA:]
         linhas_indices = [indices_linha1] + ([indices_linha2] if indices_linha2 else [])
@@ -352,6 +375,7 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         c.drawRightString(x_ini_barra + barra_larg + 25, y_barra + 3, "Crítico")
 
     c.showPage()
+
 
 
 # ============================================================
