@@ -174,7 +174,7 @@ def cor_por_valor(v_bruto: int):
 
 
 
-def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
+def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None, datahora=None):
     """
     Gera o relatório térmico de um silo, em modo paisagem,
     com até 2 linhas de cabos por página, e célula dimensionada de forma dinâmica.
@@ -316,8 +316,10 @@ def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
         c.setFillColor(colors.black)
         c.setFont("Helvetica-Bold", 18)
         c.drawCentredString(centro_x, centro_y_cab + 6, f"Relatório Térmico - {descricao}")
+        if datahora is None:
+            datahora = datetime.now()
         c.setFont("Helvetica", 11)
-        c.drawCentredString(centro_x, centro_y_cab - 12, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        c.drawCentredString(centro_x, centro_y_cab - 12, f"Data: {datahora.strftime('%d/%m/%Y %H:%M')}")
 
         # -------------------------------------------------
         # 3.1) Quebra em linha 1 e linha 2 SEM quebrar arco
@@ -487,7 +489,23 @@ def gerar_e_enviar_relatorio_obra(obra: str):
         print(f"⚠️ Nenhum dado recebido para {obra}.")
         return
 
-    nome_arquivo = f"Relatorio_{obra.replace(' ', '_').title()}_{agora_legivel()}.pdf"
+    # Tenta pegar o ts do primeiro silo (para nomear o arquivo com base na coleta)
+    primeiro_ts = None
+    for s in dados.values():
+        if s.get("ts"):
+            primeiro_ts = s["ts"]
+            break
+
+    if primeiro_ts:
+        try:
+            datahora_relatorio = datetime.strptime(primeiro_ts, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            datahora_relatorio = datetime.now()
+    else:
+        datahora_relatorio = datetime.now()
+
+    nome_arquivo = f"Relatorio_{obra.replace(' ', '_').title()}_{datahora_relatorio.strftime('%d-%m-%Y_%H-%M')}.pdf"
+
     legenda = f"📊 Relatório de Temperatura - {obra.replace('_', ' ').title()}"
     numero = cliente.get("numero")
 
@@ -503,9 +521,18 @@ def gerar_e_enviar_relatorio_obra(obra: str):
         if not info:
             print(f"⚠️ Sem dados para {obra}/{nome}, pulando...")
             continue
+
         temperaturas = [int(t) for t in info.get("temperaturas", [])]
         arcos = silo.get("arcos", None)
-        gerar_relatorio_silo(c, descricao, config, temperaturas, arcos)
+
+        ts_str = info.get("ts")
+        try:
+            datahora = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S") if ts_str else datetime.now()
+        except ValueError:
+            print(f"⚠️ TS inválido em {obra}/{nome}: {ts_str}")
+            datahora = datetime.now()
+
+        gerar_relatorio_silo(c, descricao, config, temperaturas, arcos, datahora=datahora)
 
     c.save()
     buffer_pdf.seek(0)
