@@ -110,235 +110,247 @@ def texto_por_valor(v: int) -> str:
     return mapa_erros.get(v, str(v))
 
 
-def cor_por_valor(v: int):
+def cor_por_valor(v_bruto: int):
     """
-    Define a cor conforme a faixa:
-      0–9       → Azul
-      10–19     → Verde
-      20–29     → Amarelo
-      30–60     → Vermelho
-      85–89     → Azul (negativos -5 a -1)
-      92–99     → Cinza (erro)
-      outros    → Cinza claro (fora de faixa)
+    v_bruto: valor recebido do MQTT (0–99).
+
+    Mapeamento:
+      0–60   -> temperatura 0–60°C
+      85–89  -> -5 a -1°C (faixa negativa, mesma cor da parte fria)
+      92–99  -> erro (cinza)
+      resto  -> clamped para [-5, 60] e entra no gradiente
+
+    Gradiente (no espaço da temperatura real):
+      -5  -> Azul (frio extremo)
+       0  -> Verde (bom)
+      20  -> Amarelo (alerta)
+      40  -> Vermelho (crítico)
+      60  -> Cinza (muito quente)
     """
-    if 0 <= v <= 9 or 85 <= v <= 89:
-        return colors.HexColor("#00BFFF")  # Azul claro / Ciano
-    elif 10 <= v <= 19:
-        return colors.HexColor("#32CD32")  # Verde
-    elif 20 <= v <= 29:
-        return colors.HexColor("#FFD700")  # Amarelo
-    elif 30 <= v <= 60:
-        return colors.HexColor("#FF4500")  # Vermelho
-    elif 92 <= v <= 99:
-        return colors.HexColor("#A9A9A9")  # Cinza (erro)
+
+    # 1) Erros (92–99) -> cinza escuro fixo
+    if 92 <= v_bruto <= 99:
+        return colors.HexColor("#A9A9A9")
+
+    # 2) Converte para temperatura física
+    if 85 <= v_bruto <= 89:
+        temp = v_bruto - 90   # 85→-5 ... 89→-1
     else:
-        return colors.HexColor("#C0C0C0")  # Fora da faixa / inválido
+        temp = v_bruto        # 0–60 já é a própria temperatura
+
+    # 3) Limita para faixa [-5, 60]
+    if temp < -5:
+        temp = -5
+    if temp > 60:
+        temp = 60
+
+    # 4) Gradiente por pontos de controle
+    pontos = [
+        (-5, "#00E5FF"),  # Azul
+        (0,  "#00FF00"),  # Verde
+        (20, "#FFFF00"),  # Amarelo
+        (40, "#FF4500"),  # Vermelho
+        (60, "#A0A0A0"),  # Cinza quente
+    ]
+
+    def hex_to_rgb(hex_color: str):
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    for i in range(len(pontos) - 1):
+        v1, c1 = pontos[i]
+        v2, c2 = pontos[i + 1]
+        if v1 <= temp <= v2:
+            t = (temp - v1) / (v2 - v1)
+            r1, g1, b1 = hex_to_rgb(c1)
+            r2, g2, b2 = hex_to_rgb(c2)
+            r = int(r1 + (r2 - r1) * t)
+            g = int(g1 + (g2 - g1) * t)
+            b = int(b1 + (b2 - b1) * t)
+            return colors.Color(r / 255, g / 255, b / 255)
+
+    # fallback (não deve cair aqui)
+    return colors.HexColor("#C0C0C0")
 
 
-def gerar_relatorio_silo(c, descricao, config, temperaturas):
+
+def gerar_relatorio_silo(c, descricao, config, temperaturas, arcos=None):
     """
     Gera o relatório térmico de um silo, em modo paisagem,
     com até 2 linhas de cabos por página, e célula dimensionada de forma dinâmica.
     """
-    # Constrói matriz de colunas a partir do vetor linear de temperaturas
+    # === Construção da matriz de colunas ===
     colunas = []
     idx = 0
     for nsens in config:
-        col_vals = []
+        col = []
         for _ in range(nsens):
             if idx >= len(temperaturas):
                 break
-            col_vals.append(int(temperaturas[idx]))
+            col.append(int(temperaturas[idx]))
             idx += 1
-        colunas.append(col_vals)
+        colunas.append(col)
 
     total_cabos = len(colunas)
     if total_cabos == 0:
         return
-
-    max_sensores = max((len(col) for col in colunas), default=0)
+    max_sensores = max((len(c) for c in colunas), default=0)
     if max_sensores == 0:
         return
 
     largura, altura = landscape(A4)
 
-    # Regras de layout
+    # === Regras de layout ===
     MAX_CABOS_POR_LINHA = 36
-    MAX_LINHAS_CABOS_POR_PAGINA = 2
-    CABOS_POR_PAGINA = MAX_CABOS_POR_LINHA * MAX_LINHAS_CABOS_POR_PAGINA
+    MAX_LINHAS_POR_PAGINA = 2
+    CABOS_POR_PAGINA = MAX_CABOS_POR_LINHA * MAX_LINHAS_POR_PAGINA
+    MARGEM_X, MARGEM_TOPO, MARGEM_RODAPE = 80, 110, 70
+    GAP_ENTRE_LINHAS = 40
 
-    # Margens e espaçamentos
-    MARGEM_X = 80
-    MARGEM_TOPO = 110
-    MARGEM_RODAPE = 70
-    GAP_ENTRE_LINHAS_CABOS = 40
-
-    # Paginação por grupos de cabos
-    primeiro_page = True
+    primeira = True
     for inicio_pag in range(0, total_cabos, CABOS_POR_PAGINA):
-        # Se não é a primeira página deste silo, avança página
-        if not primeiro_page:
+        if not primeira:
             c.showPage()
-        primeiro_page = False
+        primeira = False
 
         c.setPageSize(landscape(A4))
         c.setFillColor(colors.white)
         c.rect(0, 0, largura, altura, fill=1, stroke=0)
 
-        # Cabeçalho moderno
-        CABECALHO_ALTURA = 60  # reduz fundo
-        MARGEM_INFERIOR_CABECALHO = 20  # espaço em branco entre o fundo e o início da matriz
-        cor_fundo_cabecalho = colors.HexColor("#F0F4F8")  # cinza claro azulado
-        c.setFillColor(cor_fundo_cabecalho)
+        # === Cabeçalho moderno ===
+        CABECALHO_ALTURA = 60
+        MARGEM_INFERIOR_CABECALHO = 20
+        cor_fundo_cab = colors.HexColor("#F0F4F8")
+        c.setFillColor(cor_fundo_cab)
         c.rect(0, altura - CABECALHO_ALTURA, largura, CABECALHO_ALTURA, fill=1, stroke=0)
 
-        # Logo (ajuste o caminho conforme necessário)
+        # Logo alinhada à esquerda, centrada verticalmente no cabeçalho
         logo_path = os.path.join(BASE_DIR, "assets", "logo eletromaass.png")
         if os.path.exists(logo_path):
-            logo_altura = 40
-            logo_largura = 80
-            y_logo = altura - (CABECALHO_ALTURA / 2) - (logo_altura / 2)
+            logo_alt, logo_larg = 40, 80
+            y_logo = altura - (CABECALHO_ALTURA / 2) - (logo_alt / 2)
             c.drawImage(
-                logo_path, 
-                40, y_logo, 
-                width=logo_largura, 
-                height=logo_altura, 
-                preserveAspectRatio=True, 
-                mask='auto'  # <- importante para o fundo transparente
+                logo_path, 40, y_logo,
+                width=logo_larg, height=logo_alt,
+                preserveAspectRatio=True, mask='auto'
             )
 
-        # Texto central (título e data)
+        # Texto centralizado (título e data)
+        centro_x = largura / 2
+        centro_y_cab = altura - (CABECALHO_ALTURA / 2)
         c.setFillColor(colors.black)
         c.setFont("Helvetica-Bold", 18)
-        titulo = f"Relatório Térmico - {descricao}"
-        data_str = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-        # Centraliza texto
-        text_width = c.stringWidth(titulo, "Helvetica-Bold", 18)
-        data_width = c.stringWidth(data_str, "Helvetica", 11)
-        centro_x = largura / 2
-
-        # === Texto centralizado dentro do fundo do cabeçalho ===
-        centro_y_cabecalho = altura - (CABECALHO_ALTURA / 2)
-
-        # Título centralizado horizontal e verticalmente
-        c.setFont("Helvetica-Bold", 18)
-        c.drawCentredString(centro_x, centro_y_cabecalho + 6, f"Relatório Térmico - {descricao}")
-
-        # Data logo abaixo (um pouco menor)
+        c.drawCentredString(centro_x, centro_y_cab + 6, f"Relatório Térmico - {descricao}")
         c.setFont("Helvetica", 11)
-        c.drawCentredString(centro_x, centro_y_cabecalho - 12, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        c.drawCentredString(centro_x, centro_y_cab - 12, f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-        # Define os cabos desta página
+        # === Cabos da página ===
         fim_pag = min(inicio_pag + CABOS_POR_PAGINA, total_cabos)
         indices_pag = list(range(inicio_pag, fim_pag))
-
-        # Divide em até 2 linhas de cabos
         indices_linha1 = indices_pag[:MAX_CABOS_POR_LINHA]
         indices_linha2 = indices_pag[MAX_CABOS_POR_LINHA:]
-        linhas_indices = [indices_linha1]
-        if indices_linha2:
-            linhas_indices.append(indices_linha2)
+        linhas_indices = [indices_linha1] + ([indices_linha2] if indices_linha2 else [])
+        num_linhas = len(linhas_indices)
+        max_cabos_linha = max(len(l) for l in linhas_indices)
 
-        num_linhas_cabos = len(linhas_indices)
-        max_cabos_em_uma_linha = max(len(l) for l in linhas_indices)
+        altura_disp = altura - MARGEM_TOPO - MARGEM_RODAPE
+        largura_disp = largura - 2 * MARGEM_X
+        tam_h = (altura_disp - (num_linhas - 1) * GAP_ENTRE_LINHAS) / (max_sensores * num_linhas)
+        tam_w = largura_disp / max_cabos_linha
+        tam = min(tam_h, tam_w, 25)
+        tam = max(tam, 8)
 
-        # Área útil vertical para a matriz
-        altura_disponivel = altura - MARGEM_TOPO - MARGEM_RODAPE
-        largura_disponivel = largura - 2 * MARGEM_X
+        altura_total = max_sensores * tam * num_linhas + (num_linhas - 1) * GAP_ENTRE_LINHAS
+        inicio_y_global = ((altura - altura_total) / 2) - MARGEM_INFERIOR_CABECALHO
 
-        # Cálculo do tamanho da célula
-        # Altura: max_sensores linhas * nº de blocos de cabos + gaps
-        altura_matrizes = max_sensores * num_linhas_cabos
-        altura_total_com_gaps = altura_matrizes + (num_linhas_cabos - 1) * (GAP_ENTRE_LINHAS_CABOS / 10)
+        # --- Divisão por arcos (calculada 1x por página) ---
+        arcos_indices = []
+        if arcos:
+            inicio_arco = 0
+            for qtd in arcos:
+                fim_arco = inicio_arco + qtd
+                arcos_indices.append(list(range(inicio_arco, fim_arco)))
+                inicio_arco = fim_arco
 
-        # Cálculo aproximado de altura por célula
-        tamanho_celula_h = (altura_disponivel - (num_linhas_cabos - 1) * GAP_ENTRE_LINHAS_CABOS) / (max_sensores * num_linhas_cabos)
-        tamanho_celula_w = largura_disponivel / max_cabos_em_uma_linha
-
-        tamanho_celula = min(tamanho_celula_h, tamanho_celula_w, 25)
-        tamanho_celula = max(tamanho_celula, 8)  # limite mínimo
-
-        # Altura total real das matrizes (com gaps)
-        altura_total_matrizes = max_sensores * tamanho_celula * num_linhas_cabos + (num_linhas_cabos - 1) * GAP_ENTRE_LINHAS_CABOS
-
-        # Y inicial para centralizar verticalmente
-        inicio_y_global = ((altura - altura_total_matrizes) / 2) - MARGEM_INFERIOR_CABECALHO
-
-        # Desenho das matrizes (uma ou duas "fileiras" de cabos)
+        # === Desenho ===
         c.setLineWidth(0.5)
         for idx_linha, indices_cabos in enumerate(reversed(linhas_indices)):
-            y_base = inicio_y_global + idx_linha * (max_sensores * tamanho_celula + GAP_ENTRE_LINHAS_CABOS)
-            num_cabos_linha = len(indices_cabos)
-            largura_matriz = num_cabos_linha * tamanho_celula
-            x_inicio = (largura - largura_matriz) / 2
+            y_base = inicio_y_global + idx_linha * (max_sensores * tam + GAP_ENTRE_LINHAS)
+            num_cabos = len(indices_cabos)
+            largura_mat = num_cabos * tam
+            x_inicio = (largura - largura_mat) / 2
 
-            # Células
             c.setFont("Helvetica-Bold", 6)
             for pos_cabo, idx_cabo in enumerate(indices_cabos):
                 col = colunas[idx_cabo]
-                x_cabo = x_inicio + pos_cabo * tamanho_celula
+                x_cabo = x_inicio + pos_cabo * tam
                 for linha_sensor, v in enumerate(col):
-                    y_cel = y_base + linha_sensor * tamanho_celula
+                    y_cel = y_base + linha_sensor * tam
                     cor = cor_por_valor(v)
                     texto = texto_por_valor(v)
-
                     c.setFillColor(cor)
-                    c.rect(x_cabo, y_cel, tamanho_celula, tamanho_celula, fill=1, stroke=0)
-
+                    c.rect(x_cabo, y_cel, tam, tam, fill=1, stroke=0)
                     c.setFillColor(colors.black)
-                    c.drawCentredString(
-                        x_cabo + tamanho_celula / 2,
-                        y_cel + tamanho_celula / 2 - 2,
-                        texto
-                    )
+                    c.drawCentredString(x_cabo + tam / 2, y_cel + tam / 2 - 2, texto)
 
-            # Eixo de sensores (Sxx) à esquerda dessa fileira
+            # Sensores à esquerda
             c.setFont("Helvetica-Bold", 7)
-            c.setFillColor(colors.black)
             for i in range(max_sensores):
-                y_label = y_base + i * tamanho_celula + tamanho_celula / 2 - 3
+                y_label = y_base + i * tam + tam / 2 - 3
                 c.drawRightString(x_inicio - 8, y_label, f"S{i+1:02}")
 
-            # Eixo de cabos (CBxx) acima da fileira – tamanho dinâmico
-            fonte_cabos = max(4, min(8, tamanho_celula * 0.35))
-            c.setFont("Helvetica-Bold", fonte_cabos)
-
+            # Cabos abaixo
+            c.setFont("Helvetica-Bold", max(4, min(8, tam * 0.35)))
             for pos_cabo, idx_cabo in enumerate(indices_cabos):
-                x_label = x_inicio + pos_cabo * tamanho_celula + tamanho_celula / 2
-                y_label_cabo = y_base + max_sensores * tamanho_celula + (tamanho_celula * 0.3)
-                c.drawCentredString(x_label, y_label_cabo, f"C{idx_cabo + 1:02}")
+                x_label = x_inicio + pos_cabo * tam + tam / 2
+                y_label = y_base + max_sensores * tam + (tam * 0.3)
+                c.drawCentredString(x_label, y_label, f"C{idx_cabo + 1:02}")
 
+            # Etiquetas de arcos nesta linha
+            if arcos_indices:
+                c.setFont("Helvetica-Bold", 8)
+                for num_arco, grupo in enumerate(arcos_indices, start=1):
+                    cabos_linha = [idx for idx in indices_cabos if idx in grupo]
+                    if not cabos_linha:
+                        continue
+                    primeiro_idx = cabos_linha[0]
+                    ultimo_idx = cabos_linha[-1]
+                    pos_p = indices_cabos.index(primeiro_idx)
+                    pos_u = indices_cabos.index(ultimo_idx)
+                    x_p = x_inicio + pos_p * tam
+                    x_u = x_inicio + (pos_u + 1) * tam
+                    x_centro = (x_p + x_u) / 2
+                    y_arco = y_base + max_sensores * tam + (tam * 1.3)
+                    c.drawCentredString(x_centro, y_arco, f"A{num_arco:02}")
 
-        # Linha divisória entre as duas fileiras, se existirem duas
-        if num_linhas_cabos == 2:
-            y_meio = inicio_y_global + max_sensores * tamanho_celula + GAP_ENTRE_LINHAS_CABOS / 2
+        # Linha divisória se houver duas fileiras
+        if num_linhas == 2:
+            y_meio = inicio_y_global + max_sensores * tam + GAP_ENTRE_LINHAS / 2
             c.setStrokeColor(colors.lightgrey)
-            c.setLineWidth(0.5)
             c.line(MARGEM_X / 2, y_meio, largura - MARGEM_X / 2, y_meio)
 
-        # Legenda (apenas cores normais, sem erro/fora de faixa)
-        legenda = [
-            ("#00BFFF", "Azul – Ótimo"),
-            ("#32CD32", "Verde – Bom"),
-            ("#FFD700", "Amarelo – Alerta"),
-            ("#FF4500", "Vermelho – Crítico"),
-        ]
+        # === Legenda de gradiente ===
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(colors.black)
-        c.drawCentredString(largura / 2, 45, "Legenda de Cores")
+        c.drawCentredString(largura / 2, 50, "Escala de Temperatura")
+        barra_larg, barra_alt = 400, 14
+        x_ini_barra = (largura - barra_larg) / 2
+        y_barra = 30
+        num_passos = 100
+        for i in range(num_passos):
+            frac = i / (num_passos - 1)
+            v = -5 + frac * 65
+            cor = cor_por_valor(v)
+            x = x_ini_barra + i * (barra_larg / num_passos)
+            c.setFillColor(cor)
+            c.rect(x, y_barra, barra_larg / num_passos, barra_alt, fill=1, stroke=0)
 
-        total_largura_legenda = len(legenda) * 120
-        inicio_legenda_x = (largura - total_largura_legenda) / 2
-        for i, (cor_hex, texto) in enumerate(legenda):
-            x_leg = inicio_legenda_x + i * 120
-            c.setFillColor(colors.HexColor(cor_hex))
-            c.rect(x_leg, 25, 12, 12, fill=1, stroke=0)
-            c.setFillColor(colors.black)
-            c.setFont("Helvetica", 7)
-            c.drawString(x_leg + 16, 27, texto)
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 7)
+        c.drawString(x_ini_barra - 25, y_barra + 3, "Frio")
+        c.drawCentredString(largura / 2, y_barra + 3, "Normal")
+        c.drawRightString(x_ini_barra + barra_larg + 25, y_barra + 3, "Crítico")
 
-    # Ao final deste silo, deixa uma página em branco para o próximo silo (mesmo comportamento antigo)
     c.showPage()
 
 
@@ -375,7 +387,8 @@ def gerar_e_enviar_relatorio_obra(obra: str):
             print(f"⚠️ Sem dados para {obra}/{nome}, pulando...")
             continue
         temperaturas = [int(t) for t in info.get("temperaturas", [])]
-        gerar_relatorio_silo(c, descricao, config, temperaturas)
+        arcos = silo.get("arcos", None)
+        gerar_relatorio_silo(c, descricao, config, temperaturas, arcos)
 
     c.save()
     buffer_pdf.seek(0)
