@@ -57,31 +57,31 @@ def cor_por_valor(v):
     if v == 0:
         return colors.Color(192/255, 192/255, 192/255)
 
-    if 1 <= v <= 6:
+    if 1 <= v <= 7:
         return colors.Color(128/255, 255/255, 255/255)   # #80FFFF
 
-    if 7 <= v <= 14:
+    if 8 <= v <= 14:
         return colors.Color(0/255, 128/255, 255/255)     # #0080FF
 
-    if 15 <= v <= 22:
+    if 15 <= v <= 25:
         return colors.Color(0/255, 255/255, 128/255)     # #00FF80
 
-    if 23 <= v <= 25:
+    if 26 <= v <= 30:
         return colors.Color(255/255, 255/255, 128/255)   # #FFFF80
 
-    if 26 <= v <= 29:
+    if 31 <= v <= 32:
         return colors.Color(255/255, 255/255, 0/255)     # #FFFF00
 
-    if 30 <= v <= 32:
+    if 33 <= v <= 35:
         return colors.Color(255/255, 128/255, 128/255)   # #FF8080
 
-    if 33 <= v <= 39:
+    if 36 <= v <= 39:
         return colors.Color(255/255, 0/255, 0/255)       # #FF0000
 
-    if 40 <= v <= 51:
+    if 40 <= v <= 50:
         return colors.Color(128/255, 64/255, 64/255)     # #804040
 
-    if 52 <= v <= 60:
+    if 51 <= v <= 60:
         return colors.Color(128/255, 0/255, 0/255)       # #800000
 
     # 61–99 → cinza
