@@ -128,7 +128,7 @@ def gerar_e_enviar_relatorio_obra(obra: str):
     nome_arquivo = f"Relatorio_{obra.replace(' ', '_').title()}_{datahora_relatorio.strftime('%d-%m-%Y_%H-%M')}.pdf"
 
     legenda = f"📊 Relatório de Temperatura - {obra.replace('_', ' ').title()}"
-    numero = cliente.get("numero")
+    numeros_destino = cliente.get("numeros", [])
 
     buffer_pdf = io.BytesIO()
     c = canvas.Canvas(buffer_pdf, pagesize=landscape(A4))
@@ -159,11 +159,22 @@ def gerar_e_enviar_relatorio_obra(obra: str):
     buffer_pdf.seek(0)
 
     print(f"📄 PDF da obra {obra} gerado em memória (não salvo em disco).")
-    enviar_pdf_whatsapp_memoria(buffer_pdf, nome_arquivo, legenda, numero)
 
+    # Enviar para todos os números configurados
+    numeros_destino = cliente.get("numeros", [])
+
+    if not numeros_destino:
+        print(f"⚠️ Nenhum número configurado para obra {obra}.")
+    else:
+        for numero in numeros_destino:
+            print(f"📨 Enviando PDF para {numero}...")
+            enviar_pdf_whatsapp_memoria(buffer_pdf, nome_arquivo, legenda, numero)
+
+    # Limpar buffers após envio
     with leituras_lock:
         leituras_obra.pop(obra, None)
         ultima_leitura.pop(obra, None)
+
 
 
 def enviar_pdf_whatsapp_memoria(buffer_pdf: io.BytesIO, nome_arquivo: str, legenda: str, numero_destino: str):
